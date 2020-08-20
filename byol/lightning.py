@@ -79,7 +79,7 @@ class ByolLightningModule(LightningModule):
     def training_step(self, batch, *_) -> Dict[str, Union[Tensor, Dict[str, Tensor]]]:
         x, y = batch
         loss = self.forward(x)
-        loss.backward()
+        loss.backward(retain_graph=True)
 
         with torch.no_grad():
             encoded = self.encoder.projector(self.encoder.hidden)

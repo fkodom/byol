@@ -14,22 +14,9 @@ from torchvision.transforms import ToTensor
 
 from byol import ByolLightningModule
 
-
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-EVAL_MSG = """[Epoch {epoch}]
-    Loss: {loss:.3f}
-    Acc: {acc:.3f}"""
-
 TRAIN_DATASET = STL10(root="data", split="train", download=True, transform=ToTensor())
 TEST_DATASET = STL10(root="data", split="test", download=True, transform=ToTensor())
-
-resnet = resnet50(pretrained=True)
-trainer = ByolLightningModule(model=resnet)
-# print(resnet)
-# print("Pretrained Resnet50")
-# # print(EVAL_MSG.format(epoch="N/A", loss=0.0, acc=evaluate(resnet)))
-
-# train(resnet, epochs=25)
+IMAGE_SIZE = (96, 96)
 
 
 def accuracy(pred: Tensor, labels: Tensor) -> float:
@@ -40,6 +27,7 @@ def train(
     experiment: str = "stl10",
     run: str = None,
     gpus: int = device_count(),
+    precision: int = 32,
     model: str = "resnet50",
     optimizer: str = "Adam",
     monitor: str = "accuracy",
@@ -75,6 +63,9 @@ def train(
     """
     net = ByolLightningModule(
         model=getattr(models, model)(pretrained=True),
+        train_dataset=TRAIN_DATASET,
+        val_dataset=TEST_DATASET,
+        image_size=IMAGE_SIZE,
         optimizer=optimizer,
         lr=lr,
         epochs=epochs,
@@ -96,12 +87,11 @@ def train(
 
     pl.Trainer(
         gpus=gpus,
-        precision=16,
+        precision=precision,
         amp_level="O1",
         distributed_backend="ddp",
         max_epochs=epochs,
         gradient_clip_val=1.0,
-        # accumulate_grad_batches=64 // batch_size,
         resume_from_checkpoint=checkpoint,
         logger=logger,
         checkpoint_callback=checkpoint_callback,
@@ -118,8 +108,9 @@ if __name__ == "__main__":
     parser.add_argument("--run", "-r", default=None)
     parser.add_argument("--coco_dir", default="coco")
     parser.add_argument("--gpus", default=device_count(), type=int)
+    parser.add_argument("--precision", default=32, type=int)
     parser.add_argument("--model", default="resnet50")
-    parser.add_argument("--optimizer", default="AdamW")
+    parser.add_argument("--optimizer", default="Adam")
     parser.add_argument("--monitor", default="val_loss")
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--lr_backbone", default=1e-5, type=float)
@@ -136,6 +127,7 @@ if __name__ == "__main__":
         experiment=args.experiment,
         run=args.run,
         gpus=args.gpus,
+        precision=args.precision,
         model=args.model,
         optimizer=args.optimizer,
         monitor=args.monitor,
@@ -147,4 +139,3 @@ if __name__ == "__main__":
         weights=args.weights,
         debug=args.debug,
     )
-
