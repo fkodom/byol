@@ -12,7 +12,8 @@ from torchvision.models import resnet50
 from torchvision.datasets import STL10
 from torchvision.transforms import ToTensor
 
-from byol import ByolLightningModule
+# from byol import ByolLightningModule
+from byol.byol_ import BYOL as ByolLightningModule
 
 TRAIN_DATASET = STL10(root="data", split="train", download=True, transform=ToTensor())
 TEST_DATASET = STL10(root="data", split="test", download=True, transform=ToTensor())
