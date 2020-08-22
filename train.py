@@ -13,6 +13,7 @@ from torchvision.transforms import ToTensor
 
 from byol import BYOL
 
+
 TRAIN_DATASET = STL10(root="data", split="train", download=True, transform=ToTensor())
 TEST_DATASET = STL10(root="data", split="test", download=True, transform=ToTensor())
 IMAGE_SIZE = (96, 96)
@@ -29,6 +30,7 @@ def train(
     gpus: int = device_count(),
     precision: int = 32,
     model: str = "resnet50",
+    train_classifier: bool = False,
     optimizer: str = "Adam",
     monitor: str = "accuracy",
     lr: float = 1e-4,
@@ -67,6 +69,7 @@ def train(
         train_dataset=TRAIN_DATASET,
         val_dataset=TEST_DATASET,
         image_size=IMAGE_SIZE,
+        train_classifier=train_classifier,
         optimizer=optimizer,
         metrics=(accuracy,),
         lr=lr,
@@ -115,6 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpus", default=device_count(), type=int)
     parser.add_argument("--precision", default=32, type=int)
     parser.add_argument("--model", default="resnet50")
+    parser.add_argument("--train_classifier", action="store_true")
     parser.add_argument("--optimizer", default="Adam")
     parser.add_argument("--monitor", default="accuracy")
     parser.add_argument("--lr", default=1e-4, type=float)
@@ -133,6 +137,7 @@ if __name__ == "__main__":
         gpus=args.gpus,
         precision=args.precision,
         model=args.model,
+        train_classifier=args.train_classifier,
         optimizer=args.optimizer,
         monitor=args.monitor,
         lr=args.lr,

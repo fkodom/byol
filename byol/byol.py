@@ -107,17 +107,19 @@ class BYOL(ByolModule):
         return self._dataloader(train=False)
 
     def training_step(self, batch, *_) -> Dict[str, Union[Tensor, Dict]]:
-        x, y = batch
+        x = batch[0]
         with torch.no_grad():
             x1, x2 = self.augment(x), self.augment(x)
 
         pred1, pred2 = self.predict(x1), self.predict(x2)
         loss = torch.mean(self._byol_loss(x1, pred2) + self._byol_loss(x2, pred1))
 
-        with torch.no_grad():
-            encoded = self.forward(x.detach())
-        pred = torch.log_softmax(self.linear(encoded), dim=-1)
-        loss += f.nll_loss(pred, y)
+        if self.hparams.get("train_classifier", False) and len(batch) > 1:
+            y = batch[1]
+            with torch.no_grad():
+                encoded = self.forward(x.detach())
+            pred = torch.log_softmax(self.linear(encoded), dim=-1)
+            loss += f.nll_loss(pred, y)
 
         return {"loss": loss, "log": {"train_loss": loss}}
 
@@ -128,9 +130,10 @@ class BYOL(ByolModule):
         pred1, pred2 = self.predict(x1), self.predict(x2)
         loss = torch.mean(self._byol_loss(x1, pred2) + self._byol_loss(x2, pred1))
 
-        encoded = self.forward(x.detach())
-        pred = torch.log_softmax(self.linear(encoded), dim=-1)
-        loss += f.nll_loss(pred, y)
+        if self.hparams.get("train_classifier", False) and len(batch) > 1:
+            encoded = self.forward(x.detach())
+            pred = torch.log_softmax(self.linear(encoded), dim=-1)
+            loss += f.nll_loss(pred, y)
 
         metric_fns = self.hparams.get("metrics", ())
         metrics = {m.__name__: m(pred, y) for m in metric_fns}
