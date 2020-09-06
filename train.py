@@ -3,6 +3,7 @@ from os import cpu_count, makedirs
 import torch
 from torch import Tensor
 from torch.cuda import device_count
+from torch.utils.data import DataLoader
 from torchvision import models
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import MLFlowLogger
@@ -22,6 +23,16 @@ CHECKPOINTS_DIR = "checkpoints"
 
 def accuracy(pred: Tensor, labels: Tensor) -> float:
     return (pred.argmax(dim=-1) == labels).float().mean()
+
+
+def data_loader(train: bool, batch_size: int = 128) -> DataLoader:
+    return DataLoader(
+        TRAIN_DATASET if train else TEST_DATASET,
+        batch_size=batch_size,
+        shuffle=train,
+        drop_last=train,
+        num_workers=cpu_count(),
+    )
 
 
 def train(
@@ -77,7 +88,7 @@ def train(
         epochs=epochs,
         batch_size=batch_size,
         gpus=gpus,
-        num_workers=max(1, num_workers // gpus),
+        num_workers=max(1, num_workers // max(1, gpus)),
     )
     if checkpoint is not None:
         weights = args.checkpoint
@@ -106,7 +117,11 @@ def train(
         checkpoint_callback=checkpoint_callback,
         weights_summary=None,
         fast_dev_run=debug,
-    ).fit(net)
+    ).fit(
+        net, 
+        data_loader(train=True, batch_size=batch_size),
+        data_loader(train=False, batch_size=batch_size),
+    )
 
 
 if __name__ == "__main__":

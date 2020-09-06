@@ -9,17 +9,15 @@ import torch.nn.functional as f
 from torch.utils.data import DataLoader
 
 try:
-    from pytorch_lightning import LightningModule as ByolModule
-    lightning_imported = True
+    from pytorch_lightning import LightningModule
 except ImportError:
-    ByolModule = nn.Module
-    lightning_imported = False
+    LightningModule = nn.Module
 
 from byol.encoder import EncoderWrapper
-from byol.utils import normalized_mse, mlp, default_aug
+from byol.utils import normalized_mse, mlp, DEFAULT_AUG
 
 
-class BYOL(ByolModule):
+class BYOL(LightningModule):
     def __init__(
         self,
         model: nn.Module,
@@ -32,7 +30,7 @@ class BYOL(ByolModule):
         **hparams,
     ):
         super().__init__()
-        self.augment = default_aug(image_size) if augment_fn is None else augment_fn
+        self.augment = DEFAULT_AUG if augment_fn is None else augment_fn
         self.beta = beta
         self.encoder = EncoderWrapper(
             model, projection_size, hidden_size, layer=hidden_layer
@@ -40,8 +38,6 @@ class BYOL(ByolModule):
         self.predictor = mlp(projection_size, projection_size, hidden_size)
 
         self.hparams = hparams
-        self.train_dataset = hparams.get("train_dataset", None)
-        self.val_dataset = hparams.get("val_dataset", None)
         self._target = None
 
         projection_size = hparams.get("projection_size", 256)
@@ -87,24 +83,6 @@ class BYOL(ByolModule):
             },
         ]
         return optimizer(param_dicts, weight_decay=weight_decay)
-
-    def _dataloader(self, train: bool) -> DataLoader:
-        batch_size = self.hparams.get("batch_size", 128)
-        num_workers = self.hparams.get("num_workers", cpu_count())
-
-        return DataLoader(
-            self.train_dataset if train else self.val_dataset,
-            batch_size=batch_size,
-            shuffle=train,
-            drop_last=train,
-            num_workers=num_workers,
-        )
-
-    def train_dataloader(self) -> DataLoader:
-        return self._dataloader(train=True)
-
-    def val_dataloader(self) -> DataLoader:
-        return self._dataloader(train=False)
 
     def training_step(self, batch, *_) -> Dict[str, Union[Tensor, Dict]]:
         x = batch[0]
