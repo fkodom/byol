@@ -108,7 +108,7 @@ def train(
         gpus=gpus,
         precision=precision,
         amp_level="O1",
-        distributed_backend="ddp",
+        distributed_backend="ddp" if gpus > 1 else None,
         max_epochs=epochs,
         gradient_clip_val=10.0,
         accumulate_grad_batches=max(1, 256 // batch_size),
