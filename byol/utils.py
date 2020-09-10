@@ -19,18 +19,19 @@ class RandomApply(nn.Module):
         return x if random.random() > self.p else self.fn(x)
 
 
-DEFAULT_AUG: Callable = nn.Sequential(
-    tf.Resize(size=(256, 256)),
-    RandomApply(aug.ColorJitter(0.8, 0.8, 0.8, 0.2), p=0.8),
-    aug.RandomGrayscale(p=0.2),
-    aug.RandomHorizontalFlip(),
-    RandomApply(filters.GaussianBlur2d((3, 3), (1.5, 1.5)), p=0.1),
-    aug.RandomResizedCrop(size=(256, 256)),
-    aug.Normalize(
-        mean=torch.tensor([0.485, 0.456, 0.406]),
-        std=torch.tensor([0.229, 0.224, 0.225]),
-    ),
-)
+def default_augmentation(image_size: Tuple[int, int] = (224, 224)) -> nn.Module:
+    return nn.Sequential(
+        tf.Resize(size=image_size),
+        RandomApply(aug.ColorJitter(0.8, 0.8, 0.8, 0.2), p=0.8),
+        aug.RandomGrayscale(p=0.2),
+        aug.RandomHorizontalFlip(),
+        RandomApply(filters.GaussianBlur2d((3, 3), (1.5, 1.5)), p=0.1),
+        aug.RandomResizedCrop(size=image_size),
+        aug.Normalize(
+            mean=torch.tensor([0.485, 0.456, 0.406]),
+            std=torch.tensor([0.229, 0.224, 0.225]),
+        ),
+    )
 
 
 def normalized_mse(x: Tensor, y: Tensor) -> Tensor:

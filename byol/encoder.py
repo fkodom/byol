@@ -1,5 +1,6 @@
 from typing import Union
 
+from pytorch_lightning import seed_everything
 import torch
 from torch import nn, Tensor
 

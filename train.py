@@ -18,29 +18,28 @@ from byol import BYOL
 TRAIN_DATASET = STL10(root="data", split="train", download=True, transform=ToTensor())
 TEST_DATASET = STL10(root="data", split="test", download=True, transform=ToTensor())
 IMAGE_SIZE = (96, 96)
-CHECKPOINTS_DIR = "checkpoints"
 
 
 def accuracy(pred: Tensor, labels: Tensor) -> float:
     return (pred.argmax(dim=-1) == labels).float().mean()
 
 
-def data_loader(train: bool, batch_size: int = 128) -> DataLoader:
+def data_loader(train: bool, batch_size: int = 32) -> DataLoader:
     return DataLoader(
         TRAIN_DATASET if train else TEST_DATASET,
         batch_size=batch_size,
         shuffle=train,
         drop_last=train,
-        num_workers=cpu_count(),
+        num_workers=cpu_count() // max(1, device_count()),
     )
 
 
 def train(
+    model: str = "resnet50",
     experiment: str = "stl10",
     run: str = None,
     gpus: int = device_count(),
     precision: int = 32,
-    model: str = "resnet50",
     train_classifier: bool = False,
     optimizer: str = "Adam",
     monitor: str = "accuracy",
@@ -76,9 +75,7 @@ def train(
         purposes, and no data is logged to MLFlow.
     """
     net = BYOL(
-        model=getattr(models, model)(pretrained=True),
-        train_dataset=TRAIN_DATASET,
-        val_dataset=TEST_DATASET,
+        model=getattr(models, model)() if isinstance(model, str) else model,
         image_size=IMAGE_SIZE,
         train_classifier=train_classifier,
         optimizer=optimizer,
@@ -88,7 +85,6 @@ def train(
         epochs=epochs,
         batch_size=batch_size,
         gpus=gpus,
-        num_workers=max(1, num_workers // max(1, gpus)),
     )
     if checkpoint is not None:
         weights = args.checkpoint
@@ -99,26 +95,26 @@ def train(
         logger, checkpoint_callback = None, None
     else:
         logger = MLFlowLogger(experiment, tags={MLFLOW_RUN_NAME: run})
-        makedirs(CHECKPOINTS_DIR, exist_ok=True)
+        makedirs("checkpoints", exist_ok=True)
         checkpoint_callback = pl.callbacks.ModelCheckpoint(
             filepath="checkpoints", prefix=f"{experiment}_{run}_", monitor=monitor,
         )
 
-    pl.Trainer(
+    trainer = pl.Trainer(
         gpus=gpus,
         precision=precision,
         amp_level="O1",
         distributed_backend="ddp" if gpus > 1 else None,
         max_epochs=epochs,
         gradient_clip_val=10.0,
-        accumulate_grad_batches=max(1, 256 // batch_size),
         resume_from_checkpoint=checkpoint,
         logger=logger,
         checkpoint_callback=checkpoint_callback,
         weights_summary=None,
         fast_dev_run=debug,
-    ).fit(
-        net, 
+    )
+    trainer.fit(
+        net,
         data_loader(train=True, batch_size=batch_size),
         data_loader(train=False, batch_size=batch_size),
     )
@@ -137,7 +133,7 @@ if __name__ == "__main__":
     parser.add_argument("--optimizer", default="Adam")
     parser.add_argument("--monitor", default="accuracy")
     parser.add_argument("--lr", default=1e-4, type=float)
-    parser.add_argument("--linear_lr", default=1e-4, type=float)
+    parser.add_argument("--linear_lr", default=1e-3, type=float)
     parser.add_argument("--epochs", "-e", default=100, type=int)
     parser.add_argument("--batch_size", default=128, type=int)
     parser.add_argument("--workers", default=cpu_count(), type=int)

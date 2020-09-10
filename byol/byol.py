@@ -1,12 +1,10 @@
 import copy
 from itertools import chain
-from os import cpu_count
 from typing import Tuple, Callable, Union, Dict, List
 
 import torch
 from torch import nn, optim, Tensor
 import torch.nn.functional as f
-from torch.utils.data import DataLoader
 
 try:
     from pytorch_lightning import LightningModule
@@ -14,14 +12,14 @@ except ImportError:
     LightningModule = nn.Module
 
 from byol.encoder import EncoderWrapper
-from byol.utils import normalized_mse, mlp, DEFAULT_AUG
+from byol.utils import normalized_mse, mlp, default_augmentation
 
 
 class BYOL(LightningModule):
     def __init__(
         self,
         model: nn.Module,
-        image_size: Tuple[int, int] = (256, 256),
+        image_size: Tuple[int, int] = (128, 128),
         hidden_layer: Union[str, int] = -2,
         projection_size: int = 256,
         hidden_size: int = 4096,
@@ -30,12 +28,12 @@ class BYOL(LightningModule):
         **hparams,
     ):
         super().__init__()
-        self.augment = DEFAULT_AUG if augment_fn is None else augment_fn
+        self.augment = default_augmentation(image_size) if augment_fn is None else augment_fn
         self.beta = beta
         self.encoder = EncoderWrapper(
             model, projection_size, hidden_size, layer=hidden_layer
         )
-        self.predictor = mlp(projection_size, projection_size, hidden_size)
+        self.predictor = nn.Linear(projection_size, projection_size, hidden_size)
 
         self.hparams = hparams
         self._target = None
@@ -113,8 +111,10 @@ class BYOL(LightningModule):
             pred = torch.log_softmax(self.linear(encoded), dim=-1)
             loss += f.nll_loss(pred, y)
 
-        metric_fns = self.hparams.get("metrics", ())
-        metrics = {m.__name__: m(pred, y) for m in metric_fns}
+            metric_fns = self.hparams.get("metrics", ())
+            metrics = {m.__name__: m(pred, y) for m in metric_fns}
+        else:
+            metrics = {}
 
         return {"loss": loss, "log": {"val_loss": loss, **metrics}}
 

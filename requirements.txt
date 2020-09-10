@@ -1,4 +1,6 @@
 kornia>=0.4.0
+pytorch_lightning
+mlflow
 
 # Install using conda:
 #   * pytorch --> conda install pytorch -c pytorch
