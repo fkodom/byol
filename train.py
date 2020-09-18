@@ -75,7 +75,7 @@ def train(
         purposes, and no data is logged to MLFlow.
     """
     net = BYOL(
-        model=getattr(models, model)() if isinstance(model, str) else model,
+        model=getattr(models, model)(pretrained=True),
         image_size=IMAGE_SIZE,
         train_classifier=train_classifier,
         optimizer=optimizer,
@@ -106,7 +106,7 @@ def train(
         amp_level="O1",
         distributed_backend="ddp" if gpus > 1 else None,
         max_epochs=epochs,
-        gradient_clip_val=10.0,
+        gradient_clip_val=1.0,
         resume_from_checkpoint=checkpoint,
         logger=logger,
         checkpoint_callback=checkpoint_callback,
