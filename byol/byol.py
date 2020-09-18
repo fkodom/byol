@@ -101,12 +101,13 @@ class BYOL(LightningModule):
 
     @torch.no_grad()
     def validation_step(self, batch, *_) -> Dict[str, Union[Tensor, Dict]]:
-        x, y = batch
+        x = batch[0]
         x1, x2 = self.augment(x), self.augment(x)
         pred1, pred2 = self.predict(x1), self.predict(x2)
         loss = torch.mean(self._byol_loss(x1, pred2) + self._byol_loss(x2, pred1))
 
         if self.hparams.get("train_classifier", False) and len(batch) > 1:
+            y = batch[1]
             encoded = self.forward(x.detach())
             pred = torch.log_softmax(self.linear(encoded), dim=-1)
             loss += f.nll_loss(pred, y)
