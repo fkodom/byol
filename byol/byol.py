@@ -12,7 +12,7 @@ except ImportError:
     LightningModule = nn.Module
 
 from byol.encoder import EncoderWrapper
-from byol.utils import normalized_mse, mlp, default_augmentation
+from byol.utils import normalized_mse, default_augmentation
 
 
 class BYOL(LightningModule):
