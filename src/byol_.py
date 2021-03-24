@@ -12,7 +12,7 @@ except ImportError:
     LightningModule = nn.Module
 
 from byol.encoder import EncoderWrapper
-from byol.utils import normalized_mse, default_augmentation
+from byol.utils import normalized_mse, default_augmentation, mlp
 
 
 class BYOL(LightningModule):
@@ -28,12 +28,14 @@ class BYOL(LightningModule):
         **hparams,
     ):
         super().__init__()
-        self.augment = default_augmentation(image_size) if augment_fn is None else augment_fn
+        self.augment = (
+            default_augmentation(image_size) if augment_fn is None else augment_fn
+        )
         self.beta = beta
         self.encoder = EncoderWrapper(
             model, projection_size, hidden_size, layer=hidden_layer
         )
-        self.predictor = nn.Linear(projection_size, projection_size, hidden_size)
+        self.predictor = mlp(projection_size, projection_size, hidden_size)
 
         self.hparams = hparams
         self._target = None
@@ -80,15 +82,17 @@ class BYOL(LightningModule):
                 "lr": self.hparams.get("linear_lr", 1e-3),
             },
         ]
-        return optimizer(param_dicts, weight_decay=weight_decay)
+
+        return {"optimizer": optimizer(param_dicts, weight_decay=weight_decay)}
 
     def training_step(self, batch, *_) -> Dict[str, Union[Tensor, Dict]]:
         x = batch[0]
         with torch.no_grad():
             x1, x2 = self.augment(x), self.augment(x)
+            targ1, targ2 = self(x1), self(x2)
 
         pred1, pred2 = self.predict(x1), self.predict(x2)
-        loss = torch.mean(self._byol_loss(x1, pred2) + self._byol_loss(x2, pred1))
+        loss = torch.mean(normalized_mse(pred1, targ2) + normalized_mse(pred2, targ1))
 
         if self.hparams.get("train_classifier", False) and len(batch) > 1:
             y = batch[1]
@@ -98,6 +102,9 @@ class BYOL(LightningModule):
             loss += f.nll_loss(pred, y)
 
         return {"loss": loss, "log": {"train_loss": loss}}
+
+    def on_zero_grad(self, *_):
+        self.update_target()
 
     @torch.no_grad()
     def validation_step(self, batch, *_) -> Dict[str, Union[Tensor, Dict]]:
@@ -120,7 +127,10 @@ class BYOL(LightningModule):
         return {"loss": loss, "log": {"val_loss": loss, **metrics}}
 
     @torch.no_grad()
-    def validation_epoch_end(self, outputs: List[Dict],) -> Dict:
+    def validation_epoch_end(
+        self,
+        outputs: List[Dict],
+    ) -> Dict:
         val_loss = sum(x["loss"] for x in outputs) / len(outputs)
         log = {
             k: sum(x["log"][k] for x in outputs) / len(outputs)

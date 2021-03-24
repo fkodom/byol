@@ -1,10 +1,5 @@
-# First install using conda:
-#   pytorch
-#   torchvision
-#
-# Example:
-#   conda install pytorch torchvision -c pytorch
-
+torch==1.7.1
+torchvision==0.8.2
 kornia>=0.4.0
 pytorch_lightning
 mlflow
